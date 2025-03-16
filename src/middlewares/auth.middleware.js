@@ -1,6 +1,7 @@
 import { asyncHandler } from "../utils/asynchandler.js";
 import jsonwebtoken from "jsonwebtoken";
 import { User } from "../models/user.models.js";
+import { Admin } from "../models/admin.models.js";
 import { APIError } from "../utils/apiError.js";
 
 export const verifyJWT = asyncHandler(async (req, res, next) => {
@@ -19,6 +20,30 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
             throw new APIError(404, "User not found ---- Invalid Access Token");
         }
         req.user = user;
+        next();
+    } catch (error) {
+        throw new APIError(401, error?.message || "Unauthorized request");
+        // return res.status(401).json({
+        //     message: "Unauthorized"
+        
+    }
+});
+export const verifyJWTAdmin = asyncHandler(async (req, res, next) => {
+    try {
+        const token = req.cookies?.accessToken || req.headers["authorization"]?.replace("Bearer ", "");
+        if (!token) {
+            throw new APIError(401, "Unauthorized request");
+            // return res.status(401).json({
+            //     message: "Unauthorized"
+            // });
+        }
+    
+        const decodedToken = jsonwebtoken.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        const admin = await Admin.findById(decodedToken?.id).select("-password -refreshToken");
+        if (!admin) {
+            throw new APIError(404, "Admin not found ---- Invalid Access Token");
+        }
+        req.admin = admin;
         next();
     } catch (error) {
         throw new APIError(401, error?.message || "Unauthorized request");
