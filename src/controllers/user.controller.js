@@ -64,7 +64,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     let coverImageLocalPath;
     if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
-        coverImageLocalPath = req.files.coverImage[0].path;
+        coverImageLocalPath = req.files?.coverImage[0]?.path;
     }
 
     if (!avatarLocalPath) {
@@ -285,6 +285,9 @@ const getCurrentUser = asyncHandler(async(req, res) => {
         .json(new APIResponse(200, req.user, "Current user fetched successfully!!!"))
 });
 
+/* The above code is a JavaScript function called `updateAccountDetails` that is using async/await
+syntax to handle asynchronous operations. It takes in a request (`req`) and response (`res`) object
+as parameters. */
 const updateAccountDetails = asyncHandler(async(req, res) => {
     const {fullName, email} = req.body;
 

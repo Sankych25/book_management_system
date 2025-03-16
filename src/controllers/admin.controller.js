@@ -75,7 +75,7 @@ const registerAdmin = asyncHandler(async (req, res) => {
         email,
         password,
         username:username.toLowerCase(),
-        avatar: avatar.url
+        avatar: avatar.url,
     })
 
     //remove password and refresh token from response
@@ -105,7 +105,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     //req body -> data from frontend
     const { username, email, password } = req.body;
     if(!username && !email){
-        throw new APIError(400, "Please provide either username or email");
+        throw new APIError(400, "Please provide both username and email");
     }
     const admin = await Admin.findOne({ $or: [{ username: username }, { email: email }] })
     if(!admin){
@@ -210,7 +210,7 @@ const changeCurrentPassword = asyncHandler(async(req, res) => {
         throw new APIError(400,"Invaild Credential");
     }
 
-    user.password = newPassword;
+    admin.password = newPassword;
     await admin.save({validateBeforeSave: false});
 
     return res
@@ -238,7 +238,7 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
     ).select("-password")
     return res
         .status(200)
-        .json(new APIResponse(200, user, "Account Detail Uodated Successfully !!!"))
+        .json(new APIResponse(200, admin, "Account Detail Updated Successfully !!!"))
 });
 
 const updateAdminAvatar = asyncHandler(async(req, res) => {
@@ -261,7 +261,7 @@ const updateAdminAvatar = asyncHandler(async(req, res) => {
     return res
         .status(200)
         .json( 
-            new APIResponse(200, user,"A avatar image updated successfully !!"
+            new APIResponse(200, admin,"A avatar image updated successfully !!"
             )
         );
 });
@@ -286,18 +286,17 @@ const listAllBooks = async (req, res) => {
 
 const addNewBook = asyncHandler(async (req, res) => {
     
-
-    //get book details from frontend
-    const { title, Author, publishedDate, coverImageofBook } = req.body
+    //get user details from frontend
+    const { title, Author, publishedDate} = req.body
     
 
     if(
-        [title, Author, publishedDate, coverImageofBook ].some((field) => field?.trim() === "")
+        [title, Author, publishedDate].some((field) => field?.trim() === "")
     ){
         throw new APIError(400, "Please provide all the details");
     }
 
-    //check if book already exists
+    //check if user already exists
     const existedBook = await Book.findOne({ 
         $or: [
             { title: title }
@@ -307,48 +306,84 @@ const addNewBook = asyncHandler(async (req, res) => {
         throw new APIError(409, "Book with this title already exists");
     }
 
-    
-    const coverImageBook = req.files?.coverImageofBook[0]?.path;
+    //check for images
+    //check for avatar
+    //const avatarLocalPath = req.files?.avatar[0]?.path;
+    /* This code snippet is checking if there is a file named `coverImage` in the `req.files` object. */
+    //const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
-    if (!coverImageBook) {
-        throw new APIError(400, "Please provide avatar image");
-    }
+    // let coverImageLocalPath;
+    // if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+    //     coverImageLocalPath = req.files?.coverImage[0]?.path;
+    // }
     
     //upload them to cloudinary
-    const coverImage = await uploadOnCloudinary(coverImageBook);
+    //const avatar = await uploadOnCloudinary(avatarLocalPath);
+    //const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
-    if (!coverImage) {
-        throw new APIError(400, "Cover image required");
-    }
+    // if (!avatar) {
+    //     throw new APIError(400, "Avatar image required");
+    // }
 
-    //create book object - create entry in database
+    //create user object - create entry in database
     const book = await Book.create({
-        title,
-        Author,
-        publishedDate,
-        coverImage: coverImage.url
+        title: title,
+        Author: Author,
+        publishedDate: publishedDate,
+        //coverImage: coverImage?.url || "",
     })
 
-    //check for book creation
-    const createdNewBook = await Book.findById(book._id);
+    //remove password and refresh token from response
+    //check for user creation
+    const createdBook = await Book.findById(book._id);
 
-    if(!createdNewBook){
-        throw new APIError(500, "Book added successfully");
+    if(!createdBook){
+        throw new APIError(500, "Error while adding new book");
     }
 
     //return response to frontend
     return res
         .status(201)
         .json(
-            new APIResponse(201, "Book added successfully", createdNewBook)
+            new APIResponse(201, "Book added successfully", createdBook)
         );
+
+    // return res.status(200).json({
+    //     success: true,
+    //     message: "Register user",
+    //     message: "ok"
+    // });
 });
+
+// const updateBookDetails = asyncHandler(async(req, res) => {
+//     const {title, Author, publishedDate} = req.body;
+    
+
+//     if(!title || !Author || !publishedDate){
+//         throw new APIError(400,"All fields are required !!");
+//     }
+
+//     const book = await Book.findByIdAndUpdate(
+//         req.book?._id,
+//         {
+//             $set: {
+//                 title ,
+//                 Author,
+//                 publishedDate
+//             }
+//         },{
+//             new: true
+//         }
+//     )
+//     return res
+//         .status(200)
+//         .json(new APIResponse(200, book, "Book Detail Updated Successfully !!!"))
+// });
 
 const updateBookDetails = asyncHandler(async(req, res) => {
     const {title, Author, publishedDate} = req.body;
-    
 
-    if(!title || !Author || !publishedDate || !coverImageofBook){
+    if(!title || !Author || !publishedDate){
         throw new APIError(400,"All fields are required !!");
     }
 
@@ -356,9 +391,9 @@ const updateBookDetails = asyncHandler(async(req, res) => {
         req.book?._id,
         {
             $set: {
-                title: title,
+                title:  title,
                 Author: Author,
-                publishedDate: publishedDate
+                publishedDate: publishedDate,
             }
         },{
             new: true
@@ -366,7 +401,7 @@ const updateBookDetails = asyncHandler(async(req, res) => {
     )
     return res
         .status(200)
-        .json(new APIResponse(200, book, "Book Detail Updated Successfully !!!"))
+        .json(new APIResponse(200, book, "Book Detail Uodated Successfully !!!"))
 });
 
 const updateBookCoverImage = asyncHandler(async(req, res) => {
@@ -391,7 +426,7 @@ const updateBookCoverImage = asyncHandler(async(req, res) => {
         .status(200)
         .json( 
             new APIResponse(
-                200, user,"A cover image updated successfully !!"
+                200, book,"A cover image updated successfully !!"
             )
         );
 });
