@@ -4,7 +4,6 @@ import { User } from "../models/user.models.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { APIResponse } from "../utils/APIResponse.js";
 import  JsonWebToken  from "jsonwebtoken";
-import { subscribe } from "diagnostics_channel";
 import mongoose from "mongoose";
 
 
@@ -38,19 +37,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     //get user details from frontend
     const { fullName, email, password, username } = req.body
-    //console.log("email:", email);
-
-    //validate user details
-    // if (!fullName || !email || !password || !username) {
-    //     return res.status(400).json({
-    //         success: false,
-    //         message: "Please provide all the details"
-    //     });
-    // }
-
-    // if(fullName === "" || email === "" || password === "" || username === ""){
-    //     throw new APIError(400, "Please provide all the details");
-    // }
+    
 
     if(
         [fullName, email, password, username].some((field) => field?.trim() === "")
