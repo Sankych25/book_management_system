@@ -5,6 +5,7 @@ import { Book } from "../models/book.models.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { APIResponse } from "../utils/APIResponse.js";
 import  JsonWebToken  from "jsonwebtoken";
+import deleteFileFromCloudinary from "../utils/cloudinary.js";
 import mongoose from "mongoose";
 
 
@@ -22,6 +23,23 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
         throw new APIError(500, "Error generating access and refresh tokens");
     }
 };
+
+const generateISBNofBook = async (bookID) => {
+    try {
+        const book = await Book.findById(bookID);
+        if (!book) {
+            throw new APIError(404, "Book not found!!");
+        }
+
+        book.ISBN = await book.generateISBN(); // Fixed: Call on instance
+        await book.save({ validateBeforeSave: false });
+
+        return book.ISBN;
+    } catch (error) {
+        throw new APIError(500, error.message || "Error generating ISBN number");
+    }
+};
+
 const registerAdmin = asyncHandler(async (req, res) => {
     //get admin details from frontend
     //validate admin details
@@ -297,34 +315,11 @@ const addNewBook = asyncHandler(async (req, res) => {
     }
 
     //check if user already exists
-    const existedBook = await Book.findOne({ 
-        $or: [
-            { title: title }
-        ]
-     })
+    const existedBook = await Book.findOne({title: title })
     if (existedBook) {
         throw new APIError(409, "Book with this title already exists");
     }
-
-    //check for images
-    //check for avatar
-    //const avatarLocalPath = req.files?.avatar[0]?.path;
-    /* This code snippet is checking if there is a file named `coverImage` in the `req.files` object. */
-    //const coverImageLocalPath = req.files?.coverImage[0]?.path;
-
-    // let coverImageLocalPath;
-    // if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
-    //     coverImageLocalPath = req.files?.coverImage[0]?.path;
-    // }
     
-    //upload them to cloudinary
-    //const avatar = await uploadOnCloudinary(avatarLocalPath);
-    //const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-
-    // if (!avatar) {
-    //     throw new APIError(400, "Avatar image required");
-    // }
-
     //create user object - create entry in database
     const book = await Book.create({
         title: title,
@@ -336,12 +331,11 @@ const addNewBook = asyncHandler(async (req, res) => {
     //remove password and refresh token from response
     //check for user creation
     const createdBook = await Book.findById(book._id);
-
     if(!createdBook){
         throw new APIError(500, "Error while adding new book");
     }
-
-    //return response to frontend
+    await generateISBNofBook(book._id);
+    
     return res
         .status(201)
         .json(
@@ -380,76 +374,93 @@ const addNewBook = asyncHandler(async (req, res) => {
 //         .json(new APIResponse(200, book, "Book Detail Updated Successfully !!!"))
 // });
 
-const updateBookDetails = asyncHandler(async(req, res) => {
-    const {title, Author, publishedDate} = req.body;
+const updateBookDetails = asyncHandler(async (req, res) => {
+    const { Author, title, publishedDate } = req.body;
+    const bookID = req.params.id || req.body.bookID; // Get book ID safely
 
-    if(!title || !Author || !publishedDate){
-        throw new APIError(400,"All fields are required !!");
+    if (!Author || !title || !publishedDate) {
+        throw new APIError(400, "All fields are required!!");
     }
 
-    const book = await Book.findByIdAndUpdate(
-        req.book?._id,
-        {
-            $set: {
-                title:  title,
-                Author: Author,
-                publishedDate: publishedDate,
-            }
-        },{
-            new: true
-        }
-    )
-    return res
-        .status(200)
-        .json(new APIResponse(200, book, "Book Detail Uodated Successfully !!!"))
-});
-
-const updateBookCoverImage = asyncHandler(async(req, res) => {
-    const coverImageLocalPath = req.file?.path;
-    if(!coverImageLocalPath){
-        throw new APIError(400,"Cover Image file is missing");
+    // Find book first
+    const book = await Book.findById(bookID);
+    if (!book) {
+        throw new APIError(404, "Book not found!");
     }
 
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    // Update fields manually
+    book.Author = Author;
+    book.title = title;
+    book.publishedDate = publishedDate;
 
-    if(!coverImage.url){
-        throw new APIError(400,"Error while uploading on Cover Image");
-    }
-
-    const book = await Book.findByIdAndUpdate(req.book?.id, {
-        $set:{
-            coverImageofBook: coverImage.url
-        }
-    },{new: true})
+    // Save with validation
+    await book.save({ validateBeforeSave: true });
 
     return res
         .status(200)
-        .json( 
-            new APIResponse(
-                200, book,"A cover image updated successfully !!"
-            )
-        );
+        .json(new APIResponse(200, book, "Book details updated successfully!"));
 });
 
-const deleteBook = async (req, res) => {
+const updateBookCoverImage = asyncHandler(async (req, res) => {
     try {
-        // Check if user is admin
-        // if (req.user.role !== "admin") {
-        //     return res.status(403).json({ message: "Access denied. Admins only." });
-        // }
+        const coverImageLocalPath = req.file?.path;
+        if (!coverImageLocalPath) {
+            throw new APIError(400, "Cover Image file is missing");
+        }
 
-        const { id } = req.params;
-        const deletedBook = await Book.findByIdAndDelete(id);
+        // Upload to Cloudinary
+        const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
-        if (!deletedBook) {
+        if (!coverImage?.url) {
+            throw new APIError(400, "Error while uploading cover image");
+        }
+
+        // Get book ID safely
+        const bookID = req.params.id || req.body.bookID;
+
+        // Find and update book
+        const book = await Book.findById(bookID);
+        if (!book) {
+            throw new APIError(404, "Book not found!");
+        }
+
+        // Update book cover image
+        book.coverImageofBook = coverImage.url;
+        await book.save();
+
+        return res
+            .status(200)
+            .json(new APIResponse(200, book, "Cover image updated successfully!"));
+    } catch (error) {
+        throw new APIError(500, error.message || "Internal Server Error");
+    }
+});
+
+
+const deleteBook = asyncHandler(async (req, res) => {
+    try {
+        const bookID = req.params.id || req.body.bookID; // Safely get book ID
+
+        // Find the book first
+        const book = await Book.findById(bookID);
+        if (!book) {
             return res.status(404).json({ message: "Book not found" });
         }
 
+        // Delete cover image if stored on Cloudinary
+        // if (book.coverImageofBook) {
+        //     await deleteFileFromCloudinary(book.coverImageofBook);
+        // }
+
+        // Delete the book
+        await Book.findByIdAndDelete(bookID);
+
         res.status(200).json({ message: "Book deleted successfully" });
     } catch (error) {
-        res.status(500).json({ message: "Server error", error });
+        res.status(500).json({ message: "Server error", error: error.message });
     }
-};
+});
+
 
 export { addNewBook,
     updateAdminAvatar,
