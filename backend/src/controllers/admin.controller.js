@@ -73,19 +73,19 @@ const registerAdmin = asyncHandler(async (req, res) => {
         throw new APIError(409, "Admin with this email or username already exists");
     }
 
-    //check for avatar
-    const avatarLocalPath = req.files?.avatar[0]?.path;
+    // //check for avatar
+    // const avatarLocalPath = req.files?.avatar[0]?.path;
 
-    if (!avatarLocalPath) {
-        throw new APIError(400, "Please provide avatar image");
-    }
+    // if (!avatarLocalPath) {
+    //     throw new APIError(400, "Please provide avatar image");
+    // }
     
-    //upload them to cloudinary
-    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    // //upload them to cloudinary
+    // const avatar = await uploadOnCloudinary(avatarLocalPath);
 
-    if (!avatar) {
-        throw new APIError(400, "Avatar image required");
-    }
+    // if (!avatar) {
+    //     throw new APIError(400, "Avatar image required");
+    // }
 
     //create admin object - create entry in database
     const admin = await Admin.create({
@@ -93,7 +93,7 @@ const registerAdmin = asyncHandler(async (req, res) => {
         email,
         password,
         username:username.toLowerCase(),
-        avatar: avatar.url,
+        //avatar: avatar.url || "",
     })
 
     //remove password and refresh token from response
@@ -141,7 +141,9 @@ const loginAdmin = asyncHandler(async (req, res) => {
     const options = {
         httpOnly: true,
         //secure: process.env.NODE_ENV === "production",
-        secure: true
+        // secure: true
+        secure: false, //when test on localhost
+        sameSite: "Lax"
 
     }
 
